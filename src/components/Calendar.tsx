@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { colors, EVENT_COLORS } from '../theme';
+import { useTheme } from '../store';
+import { EVENT_COLORS, Palette } from '../theme';
 import { CalendarEvent, TaskStatus } from '../types';
 import { fromKey, toKey, todayKey, WEEKDAY_LABELS } from '../utils/date';
 
@@ -47,12 +48,6 @@ function buildMonth(year: number, month: number): Cell[][] {
   return weeks;
 }
 
-const STATUS_DOT: Record<TaskStatus, string> = {
-  todo: colors.todo,
-  doing: colors.doing,
-  done: colors.done,
-};
-
 const MAX_BANDS = 2;
 
 export default function Calendar({
@@ -63,6 +58,10 @@ export default function Calendar({
   rangeStart = null,
   rangeEnd = null,
 }: Props) {
+  const { c } = useTheme();
+  const styles = useMemo(() => makeStyles(c), [c]);
+  const statusDot: Record<TaskStatus, string> = { todo: c.todo, doing: c.doing, done: c.done };
+
   const initial = selected ? fromKey(selected) : new Date();
   const [year, setYear] = useState(initial.getFullYear());
   const [month, setMonth] = useState(initial.getMonth());
@@ -101,8 +100,8 @@ export default function Calendar({
             key={label}
             style={[
               styles.weekdayLabel,
-              i === 0 && { color: colors.danger },
-              i === 6 && { color: colors.primary },
+              i === 0 && { color: c.danger },
+              i === 6 && { color: c.primary },
             ]}
           >
             {label}
@@ -138,7 +137,7 @@ export default function Calendar({
                     style={[
                       styles.dayText,
                       !cell.inMonth && styles.outMonthText,
-                      isToday && !isSelected && { color: colors.primary, fontWeight: '700' },
+                      isToday && !isSelected && { color: c.primary, fontWeight: '700' },
                       (isSelected || isRangeEdge(cell.key)) && styles.selectedText,
                     ]}
                   >
@@ -149,7 +148,7 @@ export default function Calendar({
                   {dots.map((status, di) => (
                     <View
                       key={di}
-                      style={[styles.dot, { backgroundColor: STATUS_DOT[status] }]}
+                      style={[styles.dot, { backgroundColor: statusDot[status] }]}
                     />
                   ))}
                 </View>
@@ -177,54 +176,55 @@ export default function Calendar({
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    backgroundColor: colors.card,
-    borderRadius: 14,
-    paddingVertical: 10,
-    paddingHorizontal: 6,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 12,
-    marginBottom: 6,
-  },
-  navBtn: {
-    width: 34,
-    height: 34,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  navText: { fontSize: 24, color: colors.primary, lineHeight: 26 },
-  title: { fontSize: 16, fontWeight: '700', color: colors.text },
-  weekRow: { flexDirection: 'row' },
-  weekdayLabel: {
-    flex: 1,
-    textAlign: 'center',
-    fontSize: 12,
-    color: colors.textSecondary,
-    marginBottom: 4,
-  },
-  cell: { flex: 1, alignItems: 'center', paddingVertical: 3 },
-  dayCircle: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  todayCircle: { backgroundColor: '#E8F1FF' },
-  rangeCircle: { backgroundColor: '#E8F1FF', borderRadius: 8 },
-  selectedCircle: { backgroundColor: colors.primary },
-  dayText: { fontSize: 14, color: colors.text },
-  outMonthText: { color: '#C7C7CC' },
-  selectedText: { color: '#FFFFFF', fontWeight: '700' },
-  dotRow: { flexDirection: 'row', gap: 2, height: 5, marginTop: 1 },
-  dot: { width: 5, height: 5, borderRadius: 2.5 },
-  bandArea: { alignSelf: 'stretch', height: MAX_BANDS * 5, marginTop: 1 },
-  band: { height: 4, marginBottom: 1, alignSelf: 'stretch' },
-  bandStart: { borderTopLeftRadius: 2, borderBottomLeftRadius: 2, marginLeft: 3 },
-  bandEnd: { borderTopRightRadius: 2, borderBottomRightRadius: 2, marginRight: 3 },
-});
+const makeStyles = (c: Palette) =>
+  StyleSheet.create({
+    container: {
+      backgroundColor: c.card,
+      borderRadius: 14,
+      paddingVertical: 10,
+      paddingHorizontal: 6,
+    },
+    header: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingHorizontal: 12,
+      marginBottom: 6,
+    },
+    navBtn: {
+      width: 34,
+      height: 34,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    navText: { fontSize: 24, color: c.primary, lineHeight: 26 },
+    title: { fontSize: 16, fontWeight: '700', color: c.text },
+    weekRow: { flexDirection: 'row' },
+    weekdayLabel: {
+      flex: 1,
+      textAlign: 'center',
+      fontSize: 12,
+      color: c.textSecondary,
+      marginBottom: 4,
+    },
+    cell: { flex: 1, alignItems: 'center', paddingVertical: 3 },
+    dayCircle: {
+      width: 32,
+      height: 32,
+      borderRadius: 16,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    todayCircle: { backgroundColor: c.todayBg },
+    rangeCircle: { backgroundColor: c.todayBg, borderRadius: 8 },
+    selectedCircle: { backgroundColor: c.primary },
+    dayText: { fontSize: 14, color: c.text },
+    outMonthText: { color: c.faint },
+    selectedText: { color: c.onPrimary, fontWeight: '700' },
+    dotRow: { flexDirection: 'row', gap: 2, height: 5, marginTop: 1 },
+    dot: { width: 5, height: 5, borderRadius: 2.5 },
+    bandArea: { alignSelf: 'stretch', height: MAX_BANDS * 5, marginTop: 1 },
+    band: { height: 4, marginBottom: 1, alignSelf: 'stretch' },
+    bandStart: { borderTopLeftRadius: 2, borderBottomLeftRadius: 2, marginLeft: 3 },
+    bandEnd: { borderTopRightRadius: 2, borderBottomRightRadius: 2, marginRight: 3 },
+  });

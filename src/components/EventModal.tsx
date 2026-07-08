@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   KeyboardAvoidingView,
   Modal,
@@ -9,9 +9,9 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import { useStore } from '../store';
-import { colors } from '../theme';
-import { formatKorean, todayKey } from '../utils/date';
+import { useStore, useTheme } from '../store';
+import { Palette } from '../theme';
+import { formatKorean } from '../utils/date';
 import Calendar from './Calendar';
 
 interface Props {
@@ -24,6 +24,8 @@ interface Props {
 /** 기간 일정 추가 모달 — 캘린더에서 시작일, 종료일을 차례로 탭해서 범위 선택 */
 export default function EventModal({ visible, onClose, initialDate }: Props) {
   const { addEvent } = useStore();
+  const { c } = useTheme();
+  const styles = useMemo(() => makeStyles(c), [c]);
   const [title, setTitle] = useState('');
   const [start, setStart] = useState<string | null>(null);
   const [end, setEnd] = useState<string | null>(null);
@@ -83,7 +85,7 @@ export default function EventModal({ visible, onClose, initialDate }: Props) {
             <TextInput
               style={styles.input}
               placeholder="예: 오사카 출장, 제주도 여행"
-              placeholderTextColor={colors.textSecondary}
+              placeholderTextColor={c.textSecondary}
               value={title}
               onChangeText={setTitle}
             />
@@ -103,43 +105,44 @@ export default function EventModal({ visible, onClose, initialDate }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
-  backdrop: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.35)',
-    justifyContent: 'flex-end',
-  },
-  sheet: {
-    backgroundColor: colors.background,
-    borderTopLeftRadius: 18,
-    borderTopRightRadius: 18,
-    padding: 16,
-    paddingBottom: 30,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 14,
-  },
-  headerTitle: { fontSize: 16, fontWeight: '700', color: colors.text },
-  cancel: { fontSize: 15, color: colors.textSecondary },
-  save: { fontSize: 15, color: colors.primary, fontWeight: '700' },
-  saveDisabled: { color: '#C7C7CC' },
-  input: {
-    backgroundColor: colors.card,
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 11,
-    fontSize: 15,
-    color: colors.text,
-    marginBottom: 10,
-  },
-  rangeLabel: {
-    fontSize: 13,
-    color: colors.primary,
-    fontWeight: '600',
-    marginBottom: 10,
-    textAlign: 'center',
-  },
-});
+const makeStyles = (c: Palette) =>
+  StyleSheet.create({
+    backdrop: {
+      flex: 1,
+      backgroundColor: c.overlay,
+      justifyContent: 'flex-end',
+    },
+    sheet: {
+      backgroundColor: c.background,
+      borderTopLeftRadius: 18,
+      borderTopRightRadius: 18,
+      padding: 16,
+      paddingBottom: 30,
+    },
+    header: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      marginBottom: 14,
+    },
+    headerTitle: { fontSize: 16, fontWeight: '700', color: c.text },
+    cancel: { fontSize: 15, color: c.textSecondary },
+    save: { fontSize: 15, color: c.primary, fontWeight: '700' },
+    saveDisabled: { color: c.faint },
+    input: {
+      backgroundColor: c.card,
+      borderRadius: 10,
+      paddingHorizontal: 12,
+      paddingVertical: 11,
+      fontSize: 15,
+      color: c.text,
+      marginBottom: 10,
+    },
+    rangeLabel: {
+      fontSize: 13,
+      color: c.primary,
+      fontWeight: '600',
+      marginBottom: 10,
+      textAlign: 'center',
+    },
+  });

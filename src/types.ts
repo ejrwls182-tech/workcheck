@@ -46,12 +46,19 @@ export interface CalendarEvent {
   createdAt: number;
 }
 
+export type ThemeSetting = 'system' | 'light' | 'dark';
+
+export interface Settings {
+  theme: ThemeSetting;
+}
+
 export interface AppState {
   tasks: Task[];
   routines: Routine[];
   routineLog: RoutineLog;
   memos: Memo[];
   events: CalendarEvent[];
+  settings: Settings;
 }
 
 export const EMPTY_STATE: AppState = {
@@ -60,4 +67,5 @@ export const EMPTY_STATE: AppState = {
   routineLog: {},
   memos: [],
   events: [],
+  settings: { theme: 'system' },
 };

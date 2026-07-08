@@ -6,6 +6,7 @@ import React, {
   useReducer,
   useRef,
 } from 'react';
+import { useColorScheme } from 'react-native';
 import {
   AppState,
   CalendarEvent,
@@ -15,8 +16,9 @@ import {
   RoutineFreq,
   Task,
   TaskStatus,
+  ThemeSetting,
 } from './types';
-import { EVENT_COLORS } from './theme';
+import { darkColors, EVENT_COLORS, lightColors, Palette } from './theme';
 import { loadState, saveState } from './storage';
 
 let idCounter = 0;
@@ -36,7 +38,8 @@ type Action =
   | { type: 'upsertMemo'; memo: Memo }
   | { type: 'deleteMemo'; id: string }
   | { type: 'addEvent'; title: string; start: string; end: string }
-  | { type: 'deleteEvent'; id: string };
+  | { type: 'deleteEvent'; id: string }
+  | { type: 'setTheme'; theme: ThemeSetting };
 
 function reducer(state: AppState, action: Action): AppState {
   switch (action.type) {
@@ -118,6 +121,8 @@ function reducer(state: AppState, action: Action): AppState {
     }
     case 'deleteEvent':
       return { ...state, events: state.events.filter((e) => e.id !== action.id) };
+    case 'setTheme':
+      return { ...state, settings: { ...state.settings, theme: action.theme } };
     default:
       return state;
   }
@@ -136,6 +141,7 @@ interface StoreValue {
   deleteMemo: (id: string) => void;
   addEvent: (title: string, start: string, end: string) => void;
   deleteEvent: (id: string) => void;
+  setTheme: (theme: ThemeSetting) => void;
 }
 
 const StoreContext = createContext<StoreValue | null>(null);
@@ -175,6 +181,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       deleteMemo: (id) => dispatch({ type: 'deleteMemo', id }),
       addEvent: (title, start, end) => dispatch({ type: 'addEvent', title, start, end }),
       deleteEvent: (id) => dispatch({ type: 'deleteEvent', id }),
+      setTheme: (theme) => dispatch({ type: 'setTheme', theme }),
     }),
     [state]
   );
@@ -186,4 +193,19 @@ export function useStore(): StoreValue {
   const ctx = useContext(StoreContext);
   if (!ctx) throw new Error('useStore must be used within StoreProvider');
   return ctx;
+}
+
+/** 현재 테마 팔레트. 설정이 'system'이면 기기 다크모드를 따라간다 */
+export function useTheme(): {
+  c: Palette;
+  mode: 'light' | 'dark';
+  setting: ThemeSetting;
+  setTheme: (t: ThemeSetting) => void;
+} {
+  const { state, setTheme } = useStore();
+  const system = useColorScheme();
+  const setting = state.settings?.theme ?? 'system';
+  const mode: 'light' | 'dark' =
+    setting === 'system' ? (system === 'dark' ? 'dark' : 'light') : setting;
+  return { c: mode === 'dark' ? darkColors : lightColors, mode, setting, setTheme };
 }

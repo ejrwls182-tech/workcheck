@@ -36,6 +36,21 @@ export function isOverdue(key: string): boolean {
   return key < todayKey();
 }
 
+/** 오늘부터 해당 날짜까지 남은 일수 (음수 = 지남) */
+export function daysUntil(key: string, from: string = todayKey()): number {
+  return Math.round((fromKey(key).getTime() - fromKey(from).getTime()) / 86400000);
+}
+
+/** D-day 라벨: 0 → "D-day", 3 → "D-3", -2 → "D+2" */
+export function ddayLabel(n: number): string {
+  if (n === 0) return 'D-day';
+  return n > 0 ? `D-${n}` : `D+${-n}`;
+}
+
+export function addDays(d: Date, n: number): Date {
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate() + n);
+}
+
 /** 이번 주 범위 문자열 "7/6 ~ 7/12" */
 export function weekRangeLabel(d: Date = new Date()): string {
   const monday = fromKey(weekKey(d));
