@@ -24,6 +24,7 @@ const STATUS_ORDER: TaskStatus[] = ['todo', 'doing', 'done'];
 const ARCHIVE_AFTER_MS = 7 * 24 * 60 * 60 * 1000;
 
 function isArchived(t: Task): boolean {
+  if (t.archived !== undefined) return t.archived; // 수동 지정이 우선
   return t.status === 'done' && !!t.completedAt && Date.now() - t.completedAt > ARCHIVE_AFTER_MS;
 }
 
@@ -38,8 +39,8 @@ function DdayBadge({ dueDate }: { dueDate: string }) {
   );
 }
 
-function TaskCard({ task }: { task: Task }) {
-  const { setTaskStatus, deleteTask } = useStore();
+function TaskCard({ task, inArchive = false }: { task: Task; inArchive?: boolean }) {
+  const { setTaskStatus, setTaskArchived, deleteTask } = useStore();
   const { c } = useTheme();
   const styles = useMemo(() => makeCardStyles(c), [c]);
   const statusMeta = getStatusMeta(c);
@@ -89,6 +90,24 @@ function TaskCard({ task }: { task: Task }) {
             <Text style={[styles.moveBtnText, { color: statusMeta[next].color }]}>
               {statusMeta[next].label} ›
             </Text>
+          </Pressable>
+        )}
+        {task.status === 'done' && !inArchive && (
+          <Pressable
+            style={styles.moveBtn}
+            hitSlop={4}
+            onPress={() => setTaskArchived(task.id, true)}
+          >
+            <Text style={styles.moveBtnText}>보관 ⤵</Text>
+          </Pressable>
+        )}
+        {inArchive && (
+          <Pressable
+            style={styles.moveBtn}
+            hitSlop={4}
+            onPress={() => setTaskArchived(task.id, false)}
+          >
+            <Text style={styles.moveBtnText}>꺼내기 ⤴</Text>
           </Pressable>
         )}
         <Pressable
@@ -373,7 +392,7 @@ export default function ChecklistScreen() {
                   완료 후 7일이 지난 업무는 자동으로 이곳으로 이동합니다
                 </Text>
                 {archivedTasks.map((t) => (
-                  <TaskCard key={t.id} task={t} />
+                  <TaskCard key={t.id} task={t} inArchive />
                 ))}
               </>
             )}

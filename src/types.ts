@@ -8,6 +8,11 @@ export interface Task {
   dueDate?: string;
   createdAt: number;
   completedAt?: number;
+  /**
+   * 보관 상태 수동 지정: true = 보관함으로 이동, false = 보관함에서 꺼냄(자동 이동도 무시).
+   * undefined면 완료 후 7일 경과 시 자동 보관 규칙을 따른다.
+   */
+  archived?: boolean;
 }
 
 export type RoutineFreq = 'daily' | 'weekly';

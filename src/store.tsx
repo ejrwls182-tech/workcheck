@@ -31,6 +31,7 @@ type Action =
   | { type: 'hydrate'; state: AppState }
   | { type: 'addTask'; title: string; dueDate?: string }
   | { type: 'setTaskStatus'; id: string; status: TaskStatus }
+  | { type: 'setTaskArchived'; id: string; archived: boolean }
   | { type: 'deleteTask'; id: string }
   | { type: 'addRoutine'; title: string; freq: RoutineFreq }
   | { type: 'toggleRoutine'; id: string; periodKey: string }
@@ -64,8 +65,16 @@ function reducer(state: AppState, action: Action): AppState {
                 ...t,
                 status: action.status,
                 completedAt: action.status === 'done' ? Date.now() : undefined,
+                archived: undefined, // 상태가 바뀌면 보관 지정 초기화
               }
             : t
+        ),
+      };
+    case 'setTaskArchived':
+      return {
+        ...state,
+        tasks: state.tasks.map((t) =>
+          t.id === action.id ? { ...t, archived: action.archived } : t
         ),
       };
     case 'deleteTask':
@@ -133,6 +142,7 @@ interface StoreValue {
   ready: boolean;
   addTask: (title: string, dueDate?: string) => void;
   setTaskStatus: (id: string, status: TaskStatus) => void;
+  setTaskArchived: (id: string, archived: boolean) => void;
   deleteTask: (id: string) => void;
   addRoutine: (title: string, freq: RoutineFreq) => void;
   toggleRoutine: (id: string, periodKey: string) => void;
@@ -169,6 +179,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       ready: readyRef.current,
       addTask: (title, dueDate) => dispatch({ type: 'addTask', title, dueDate }),
       setTaskStatus: (id, status) => dispatch({ type: 'setTaskStatus', id, status }),
+      setTaskArchived: (id, archived) => dispatch({ type: 'setTaskArchived', id, archived }),
       deleteTask: (id) => dispatch({ type: 'deleteTask', id }),
       addRoutine: (title, freq) => dispatch({ type: 'addRoutine', title, freq }),
       toggleRoutine: (id, periodKey) => dispatch({ type: 'toggleRoutine', id, periodKey }),
