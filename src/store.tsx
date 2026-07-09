@@ -1,12 +1,18 @@
+import { Session } from '@supabase/supabase-js';
 import React, {
   createContext,
+  useCallback,
   useContext,
   useEffect,
   useMemo,
   useReducer,
   useRef,
+  useState,
 } from 'react';
-import { useColorScheme } from 'react-native';
+import { Platform, useColorScheme } from 'react-native';
+import { loadState, saveState } from './storage';
+import { mergeStates, newRev, supabase } from './sync';
+import { darkColors, EVENT_COLORS, lightColors, Palette } from './theme';
 import {
   AppState,
   CalendarEvent,
@@ -18,8 +24,6 @@ import {
   TaskStatus,
   ThemeSetting,
 } from './types';
-import { darkColors, EVENT_COLORS, lightColors, Palette } from './theme';
-import { loadState, saveState } from './storage';
 
 let idCounter = 0;
 function newId(): string {
@@ -137,9 +141,21 @@ function reducer(state: AppState, action: Action): AppState {
   }
 }
 
+export interface SyncInfo {
+  /** Supabase 설정이 채워져 있는지 */
+  enabled: boolean;
+  session: Session | null;
+  lastSyncAt: number | null;
+  /** 성공 시 null, 실패 시 오류 메시지 반환 */
+  signIn: (email: string, password: string) => Promise<string | null>;
+  signUp: (email: string, password: string) => Promise<string | null>;
+  signOut: () => Promise<void>;
+}
+
 interface StoreValue {
   state: AppState;
   ready: boolean;
+  sync: SyncInfo;
   addTask: (title: string, dueDate?: string) => void;
   setTaskStatus: (id: string, status: TaskStatus) => void;
   setTaskArchived: (id: string, archived: boolean) => void;
@@ -158,25 +174,168 @@ const StoreContext = createContext<StoreValue | null>(null);
 
 export function StoreProvider({ children }: { children: React.ReactNode }) {
   const [state, dispatch] = useReducer(reducer, EMPTY_STATE);
-  const readyRef = useRef(false);
-  const [, forceRender] = useReducer((x: number) => x + 1, 0);
+  const [ready, setReady] = useState(false);
+  const [session, setSession] = useState<Session | null>(null);
+  const [lastSyncAt, setLastSyncAt] = useState<number | null>(null);
 
+  const stateRef = useRef(state);
+  stateRef.current = state;
+  const sessionRef = useRef(session);
+  sessionRef.current = session;
+  /** 로컬 변경이 아직 서버에 push되지 않은 상태 */
+  const dirtyRef = useRef(false);
+  /** 내가 마지막으로 push한 rev — 실시간 이벤트의 내 echo를 무시하는 데 사용 */
+  const myRevRef = useRef<string | null>(null);
+  /** 원격 상태를 적용하는 중이면 push를 건너뛴다 (ping-pong 방지) */
+  const applyingRemoteRef = useRef(false);
+  const pushTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // 1) 로컬 저장소에서 복원
   useEffect(() => {
     loadState().then((loaded) => {
+      applyingRemoteRef.current = true;
       dispatch({ type: 'hydrate', state: loaded });
-      readyRef.current = true;
-      forceRender();
+      setReady(true);
     });
   }, []);
 
+  // 2) 인증 세션 감시
   useEffect(() => {
-    if (readyRef.current) saveState(state);
-  }, [state]);
+    if (!supabase) return;
+    supabase.auth.getSession().then(({ data }) => setSession(data.session));
+    const { data: sub } = supabase.auth.onAuthStateChange((_event, s) => setSession(s));
+    return () => sub.subscription.unsubscribe();
+  }, []);
+
+  const pushState = useCallback(async (s: AppState) => {
+    const sess = sessionRef.current;
+    if (!supabase || !sess) return;
+    const rev = newRev();
+    myRevRef.current = rev;
+    dirtyRef.current = false;
+    const { error } = await supabase.from('app_state').upsert({
+      user_id: sess.user.id,
+      state: s,
+      rev,
+      updated_at: new Date().toISOString(),
+    });
+    if (!error) setLastSyncAt(Date.now());
+  }, []);
+
+  const applyRemote = useCallback((remote: Partial<AppState>) => {
+    applyingRemoteRef.current = true;
+    dispatch({ type: 'hydrate', state: { ...EMPTY_STATE, ...remote } });
+    setLastSyncAt(Date.now());
+  }, []);
+
+  const pullLatest = useCallback(async () => {
+    const sess = sessionRef.current;
+    if (!supabase || !sess || dirtyRef.current) return;
+    const { data } = await supabase
+      .from('app_state')
+      .select('state, rev')
+      .eq('user_id', sess.user.id)
+      .maybeSingle();
+    if (data?.state && data.rev !== myRevRef.current) applyRemote(data.state);
+  }, [applyRemote]);
+
+  // 3) 로그인 후 최초 동기화 + 실시간 구독 + 화면 복귀 시 갱신
+  const userId = session?.user.id ?? null;
+  useEffect(() => {
+    if (!supabase || !userId || !ready) return;
+    const sb = supabase;
+    let cancelled = false;
+
+    (async () => {
+      const { data } = await sb
+        .from('app_state')
+        .select('state')
+        .eq('user_id', userId)
+        .maybeSingle();
+      if (cancelled) return;
+      if (data?.state) {
+        // 최초 1회: 기기 데이터와 서버 데이터 병합 (유실 방지)
+        const merged = mergeStates(stateRef.current, data.state);
+        applyingRemoteRef.current = true;
+        dispatch({ type: 'hydrate', state: merged });
+        await pushState(merged);
+      } else {
+        await pushState(stateRef.current);
+      }
+    })();
+
+    const channel = sb
+      .channel(`app_state_${userId}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'app_state', filter: `user_id=eq.${userId}` },
+        (payload) => {
+          const row = payload.new as { state?: Partial<AppState>; rev?: string } | null;
+          if (!row?.state || row.rev === myRevRef.current) return;
+          if (dirtyRef.current) return; // 내 변경이 곧 push됨 (last-write-wins)
+          applyRemote(row.state);
+        }
+      )
+      .subscribe();
+
+    // 웹/PWA: 화면으로 돌아오면 최신 상태 확인 (실시간 놓침 대비)
+    let onVisibility: (() => void) | null = null;
+    if (Platform.OS === 'web' && typeof document !== 'undefined') {
+      onVisibility = () => {
+        if (document.visibilityState === 'visible') pullLatest();
+      };
+      document.addEventListener('visibilitychange', onVisibility);
+    }
+
+    return () => {
+      cancelled = true;
+      sb.removeChannel(channel);
+      if (onVisibility) document.removeEventListener('visibilitychange', onVisibility);
+    };
+  }, [userId, ready, pushState, pullLatest, applyRemote]);
+
+  // 4) 상태 변경 시: 로컬 저장 + (로그인 상태면) 서버 push 예약
+  useEffect(() => {
+    if (!ready) return;
+    saveState(state);
+    if (applyingRemoteRef.current) {
+      applyingRemoteRef.current = false;
+      return; // 방금 적용한 원격 상태를 다시 push하지 않는다
+    }
+    if (supabase && sessionRef.current) {
+      dirtyRef.current = true;
+      if (pushTimerRef.current) clearTimeout(pushTimerRef.current);
+      pushTimerRef.current = setTimeout(() => pushState(stateRef.current), 800);
+    }
+  }, [state, ready, pushState]);
+
+  const sync = useMemo<SyncInfo>(
+    () => ({
+      enabled: !!supabase,
+      session,
+      lastSyncAt,
+      signIn: async (email, password) => {
+        if (!supabase) return 'Supabase 설정이 필요합니다';
+        const { error } = await supabase.auth.signInWithPassword({ email, password });
+        return error ? error.message : null;
+      },
+      signUp: async (email, password) => {
+        if (!supabase) return 'Supabase 설정이 필요합니다';
+        const { error } = await supabase.auth.signUp({ email, password });
+        return error ? error.message : null;
+      },
+      signOut: async () => {
+        if (supabase) await supabase.auth.signOut();
+      },
+    }),
+    [session, lastSyncAt]
+  );
 
   const value = useMemo<StoreValue>(
     () => ({
       state,
-      ready: readyRef.current,
+      ready,
+      sync,
       addTask: (title, dueDate) => dispatch({ type: 'addTask', title, dueDate }),
       setTaskStatus: (id, status) => dispatch({ type: 'setTaskStatus', id, status }),
       setTaskArchived: (id, archived) => dispatch({ type: 'setTaskArchived', id, archived }),
@@ -194,7 +353,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       deleteEvent: (id) => dispatch({ type: 'deleteEvent', id }),
       setTheme: (theme) => dispatch({ type: 'setTheme', theme }),
     }),
-    [state]
+    [state, ready, sync]
   );
 
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>;

@@ -2,6 +2,7 @@ import { StatusBar } from 'expo-status-bar';
 import React, { useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
+import SettingsModal from './src/components/SettingsModal';
 import ChecklistScreen from './src/screens/ChecklistScreen';
 import MemoScreen from './src/screens/MemoScreen';
 import RoutineScreen from './src/screens/RoutineScreen';
@@ -23,6 +24,7 @@ const THEME_LABEL: Record<ThemeSetting, string> = { system: '자동', light: '�
 
 function Root() {
   const [tab, setTab] = useState<Tab>('checklist');
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const { c, mode, setting, setTheme } = useTheme();
   const styles = useMemo(() => makeStyles(c), [c]);
   const current = TABS.find((t) => t.key === tab)!;
@@ -37,10 +39,15 @@ function Root() {
       <StatusBar style={mode === 'dark' ? 'light' : 'dark'} />
       <View style={styles.header}>
         <Text style={styles.headerTitle}>{current.title}</Text>
-        <Pressable style={styles.themeBtn} onPress={cycleTheme} hitSlop={6}>
-          <Text style={styles.themeIcon}>{THEME_ICON[setting]}</Text>
-          <Text style={styles.themeLabel}>{THEME_LABEL[setting]}</Text>
-        </Pressable>
+        <View style={styles.headerActions}>
+          <Pressable style={styles.themeBtn} onPress={cycleTheme} hitSlop={6}>
+            <Text style={styles.themeIcon}>{THEME_ICON[setting]}</Text>
+            <Text style={styles.themeLabel}>{THEME_LABEL[setting]}</Text>
+          </Pressable>
+          <Pressable style={styles.themeBtn} onPress={() => setSettingsOpen(true)} hitSlop={6}>
+            <Text style={styles.themeIcon}>⚙️</Text>
+          </Pressable>
+        </View>
       </View>
 
       <View style={styles.body}>
@@ -59,6 +66,8 @@ function Root() {
           </Pressable>
         ))}
       </View>
+
+      <SettingsModal visible={settingsOpen} onClose={() => setSettingsOpen(false)} />
     </SafeAreaView>
   );
 }
@@ -85,6 +94,7 @@ const makeStyles = (c: Palette) =>
       paddingBottom: 6,
     },
     headerTitle: { fontSize: 24, fontWeight: '800', color: c.text },
+    headerActions: { flexDirection: 'row', alignItems: 'center', gap: 6 },
     themeBtn: {
       flexDirection: 'row',
       alignItems: 'center',
