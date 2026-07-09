@@ -6,5 +6,6 @@
  * - SUPABASE_ANON_KEY: Project Settings → API → anon public key
  *   (anon 키는 공개돼도 되는 키로, 데이터 보호는 RLS 정책이 담당한다 — supabase/setup.sql 참고)
  */
-export const SUPABASE_URL = '';
-export const SUPABASE_ANON_KEY = '';
+export const SUPABASE_URL = 'https://iysfmvsunqfiltppglgr.supabase.co';
+export const SUPABASE_ANON_KEY =
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Iml5c2ZtdnN1bnFmaWx0cHBnbGdyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM1NDQ5MzksImV4cCI6MjA5OTEyMDkzOX0.siqPXhEJ1j8C-98-LbSLhNNhicqsENBziaHOMXmhPnw';

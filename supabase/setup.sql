@@ -21,5 +21,9 @@ create policy "own_state_insert" on public.app_state
 create policy "own_state_update" on public.app_state
   for update using (auth.uid() = user_id);
 
+-- 로그인한 사용자에게 테이블 접근 권한 부여 (행 수준 보안은 위 정책이 담당)
+grant usage on schema public to authenticated;
+grant select, insert, update on public.app_state to authenticated;
+
 -- 실시간 동기화 활성화 (PC ↔ 아이폰 즉시 반영)
 alter publication supabase_realtime add table public.app_state;
