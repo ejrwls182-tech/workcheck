@@ -148,13 +148,26 @@ export default function ChecklistScreen() {
   const archivedTasks = useMemo(() => state.tasks.filter(isArchived), [state.tasks]);
   const activeTasks = useMemo(() => state.tasks.filter((t) => !isArchived(t)), [state.tasks]);
 
+  // 마감이 10일 이상 남은 업무는 기본 보드에서 숨김 (캘린더 점으로만 표시)
+  const isFarFuture = (t: Task) => !!t.dueDate && daysUntil(t.dueDate) >= 10;
+
+  const searching = searchOpen && query.trim().length > 0;
+
   const visibleTasks = useMemo(() => {
     let list = activeTasks;
-    if (selectedDate) list = list.filter((t) => t.dueDate === selectedDate);
+    if (selectedDate) {
+      // 날짜 선택 시에는 D-10 이상이어도 그 날짜 업무를 보여준다
+      list = list.filter((t) => t.dueDate === selectedDate);
+    } else if (!searching) {
+      list = list.filter((t) => !isFarFuture(t));
+    }
     const q = query.trim().toLowerCase();
-    if (searchOpen && q) list = list.filter((t) => t.title.toLowerCase().includes(q));
+    if (searching) list = list.filter((t) => t.title.toLowerCase().includes(q));
     return list;
-  }, [activeTasks, selectedDate, query, searchOpen]);
+  }, [activeTasks, selectedDate, query, searching]);
+
+  const hiddenFarCount =
+    !selectedDate && !searching ? activeTasks.filter(isFarFuture).length : 0;
 
   const markers = useMemo(() => {
     const m: CalendarMarkers = {};
@@ -319,6 +332,13 @@ export default function ChecklistScreen() {
             </View>
           );
         })}
+
+        {/* D-10 이상이라 보드에서 숨겨진 업무 안내 */}
+        {hiddenFarCount > 0 && (
+          <Text style={styles.farFutureHint}>
+            🗓 마감이 10일 이상 남은 업무 {hiddenFarCount}건은 캘린더에만 표시됩니다
+          </Text>
+        )}
 
         {/* 캘린더 (체크리스트 바로 아래, 날짜 선택과 연동) */}
         <Calendar
@@ -536,6 +556,12 @@ const makeStyles = (c: Palette) =>
       fontSize: 11,
       color: c.textSecondary,
       marginTop: 8,
+      textAlign: 'center',
+    },
+    farFutureHint: {
+      fontSize: 12,
+      color: c.textSecondary,
+      marginBottom: 10,
       textAlign: 'center',
     },
     eventSection: { marginTop: 18 },
